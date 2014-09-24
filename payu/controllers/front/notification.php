@@ -11,6 +11,7 @@
  * http://twitter.com/openpayu
  */
 
+include_once '../../tools/logger/SimpleLogger.php';
 class PayUNotificationModuleFrontController extends ModuleFrontController
 {
 
@@ -20,6 +21,9 @@ class PayUNotificationModuleFrontController extends ModuleFrontController
 		$data = trim( $body );
 		$result = OpenPayU_Order::consumeNotification ( $data );
 		$response = $result->getResponse();
+
+        SimpleLogger::addLog(_PS_MODULE_DIR_.'payu/log/notification.log', '-----------------------------------------');
+        SimpleLogger::addLog(_PS_MODULE_DIR_.'payu/log/notification.log', print_r($response, true));
 
 		if (isset($response->order->orderId))
 		{
@@ -41,12 +45,15 @@ class PayUNotificationModuleFrontController extends ModuleFrontController
 				);
 
 				$id_order = $payu->current_order = $payu->{'currentOrder'};
+                SimpleLogger::addLog(_PS_MODULE_DIR_.'payu/log/notification.log', 'wywołanie updateOrderPaymentStatusBySessionId z parametrem '.PayU::PAYMENT_STATUS_INIT.' z Notification');
                 $payu->updateOrderPaymentStatusBySessionId(PayU::PAYMENT_STATUS_INIT);
 			}
 
 			if (!empty($id_order))
 			{
 				$payu->id_order = $id_order;
+
+                SimpleLogger::addLog(_PS_MODULE_DIR_.'payu/log/notification.log', 'wywołanie $payu->updateOrderData() z Notification');
 				$payu->updateOrderData();
 			}
 

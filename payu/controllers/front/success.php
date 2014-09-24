@@ -48,7 +48,9 @@ class PayUSuccessModuleFrontController extends ModuleFrontController
 			);
 
 			$payu->id_order = $payu->current_order = $payu->{'currentOrder'};
-			$payu->updateOrderPaymentStatusBySessionId(PayU::PAYMENT_STATUS_INIT);
+            SimpleLogger::addLog(_PS_MODULE_DIR_.'payu/log/notification.log', 'wywołanie updateOrderPaymentStatusBySessionId z parametrem '.PayU::PAYMENT_STATUS_INIT.' z Success');
+
+            $payu->updateOrderPaymentStatusBySessionId(PayU::PAYMENT_STATUS_INIT);
 		}
 
 		$id_order = $payu->getOrderIdBySessionId($id_payu_session);
@@ -56,7 +58,8 @@ class PayUSuccessModuleFrontController extends ModuleFrontController
 		if (!empty($id_order))
 		{
 			$payu->id_order = $id_order;
-			$payu->updateOrderData();
+            SimpleLogger::addLog(_PS_MODULE_DIR_.'payu/log/notification.log', 'wywołanie $payu->updateOrderData() z Success');
+            $payu->updateOrderData();
 		}
 
 		Tools::redirect(

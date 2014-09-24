@@ -13,7 +13,7 @@
 
 if (!defined('_PS_VERSION_'))
 	exit;
-
+include_once 'tools/logger/SimpleLogger.php';
 include_once(_PS_MODULE_DIR_.'/payu/tools/sdk_v21/openpayu.php');
 
 class PayU extends PaymentModule
@@ -1047,16 +1047,23 @@ class PayU extends PaymentModule
 	 * @return bool
 	 */
 	private function sendPaymentUpdate($status)
-	{
+	{   SimpleLogger::addLog(_PS_MODULE_DIR_.'payu/log/notification.log', 'wywołanie sendPaymentUpdate z parametrem $status= '.$status);
 		if (!empty($status) && !empty($this->id_session))
 		{
+            $result=array();
 			if ($status == self::ORDER_STATUS_CANCEL)
 				$result = OpenPayU_Order::cancel($this->id_session, false);
-			elseif ($status == self::ORDER_STATUS_COMPLETE)
-				$result = OpenPayU_Order::updateStatus($this->id_session, $status, false);
+			elseif ($status == self::ORDER_STATUS_COMPLETE)  {
+                $status_update = array(
+                    "orderId" => $this->id_order,
+                    "orderStatus" => 'COMPLETED'
+                );
+                $result = OpenPayU_Order::statusUpdate($status_update);
+            }
 
 			if ($result->getSuccess())
 			{
+                SimpleLogger::addLog(_PS_MODULE_DIR_.'payu/log/notification.log', 'wywołanie $payu->updateOrderData() z sendPaymentUpdate()');
 				$this->updateOrderData();
 				return true;
 			}
@@ -1755,6 +1762,7 @@ class PayU extends PaymentModule
 	 */
 	public function updateOrderPaymentStatusBySessionId($status)
 	{
+        SimpleLogger::addLog(_PS_MODULE_DIR_.'payu/log/notification.log', 'updateOrderPaymentStatusBySessionId: zmiana statusu w order_payu_payments na: '.$status);
 		return Db::getInstance()->execute('
 			UPDATE `'._DB_PREFIX_.'order_payu_payments`
 			SET id_order = "'.(int)$this->id_order.'", status = "'.addslashes($status).'", update_at = NOW()
@@ -1837,6 +1845,8 @@ class PayU extends PaymentModule
 	 */
 	private function updateOrderState($status)
 	{
+        SimpleLogger::addLog(_PS_MODULE_DIR_.'payu/log/notification.log', 'wywołanie updateOrderState($status) z parametrem $status: '.$status);
+
 		if (!empty($this->order->id))
 		{
 			if (version_compare(_PS_VERSION_, '1.5', 'lt'))
@@ -1847,16 +1857,24 @@ class PayU extends PaymentModule
 			else
 				$order_state_id = $this->order->current_state;
 
+            SimpleLogger::addLog(_PS_MODULE_DIR_.'payu/log/notification.log', 'current state id: '.$order_state_id);
+
+
+            $history = new OrderHistory();
+            $history->id_order = $this->order->id;
+            $history->date_add = date('Y-m-d H:i:s');
+
 			switch ($status)
 			{
 				//case self::PAYMENT_STATUS_END :
 				case self::ORDER_V2_COMPLETED :
 					if ($order_state_id != (int)Configuration::get('PAYU_PAYMENT_STATUS_COMPLETED'))
 					{
-						$history = new OrderHistory();
-						$history->id_order = $this->order->id;
-						$history->date_add = date('Y-m-d H:i:s');
+                        SimpleLogger::addLog(_PS_MODULE_DIR_.'payu/log/notification.log', 'current state id: '.$order_state_id. 'changing to: '.(int)Configuration::get('PAYU_PAYMENT_STATUS_COMPLETED'));
+                        SimpleLogger::addLog(_PS_MODULE_DIR_.'payu/log/notification.log', 'ZMIANA STATUSU NA: '.PAYU_PAYMENT_STATUS_COMPLETED);
+
 						$history->changeIdOrderState(Configuration::get('PAYU_PAYMENT_STATUS_COMPLETED'), $this->order->id);
+                        SimpleLogger::addLog(_PS_MODULE_DIR_.'payu/log/notification.log', PAYU_PAYMENT_STATUS_COMPLETED.' WYSLANIE EMAILA!');
 						$history->addWithemail(true);
 					}
 					break;
@@ -1864,10 +1882,12 @@ class PayU extends PaymentModule
 				case self::ORDER_V2_CANCELED :
 					if ($order_state_id != (int)Configuration::get('PAYU_PAYMENT_STATUS_CANCELED'))
 					{
-						$history = new OrderHistory();
-						$history->id_order = $this->order->id;
-						$history->date_add = date('Y-m-d H:i:s');
-						$history->changeIdOrderState(Configuration::get('PAYU_PAYMENT_STATUS_CANCELED'), $this->order->id);
+                        SimpleLogger::addLog(_PS_MODULE_DIR_.'payu/log/notification.log', 'current state id: '.$order_state_id. 'changing to: '.(int)Configuration::get('PAYU_PAYMENT_STATUS_CANCELED'));
+                        SimpleLogger::addLog(_PS_MODULE_DIR_.'payu/log/notification.log', 'ZMIANA STATUSU NA: '.PAYU_PAYMENT_STATUS_CANCELED);
+
+
+                        $history->changeIdOrderState(Configuration::get('PAYU_PAYMENT_STATUS_CANCELED'), $this->order->id);
+
 						$history->addWithemail(true);
 					}
 					break;
@@ -1875,11 +1895,12 @@ class PayU extends PaymentModule
 				case self::ORDER_V2_REJECTED :
 					if ($order_state_id != (int)Configuration::get('PAYU_PAYMENT_STATUS_REJECTED'))
 					{
-						$history = new OrderHistory();
-						$history->id_order = $this->order->id;
-						$history->date_add = date('Y-m-d H:i:s');
+                        SimpleLogger::addLog(_PS_MODULE_DIR_.'payu/log/notification.log', 'current state id: '.$order_state_id. 'changing to: '.(int)Configuration::get('PAYU_PAYMENT_STATUS_REJECTED'));
+                        SimpleLogger::addLog(_PS_MODULE_DIR_.'payu/log/notification.log', 'ZMIANA STATUSU NA: '.PAYU_PAYMENT_STATUS_REJECTED);
 						$history->changeIdOrderState(Configuration::get('PAYU_PAYMENT_STATUS_REJECTED'), $this->order->id);
-						$history->addWithemail(true);
+
+
+                        $history->addWithemail(true);
 					}
 					break;
 				//case self::PAYMENT_STATUS_SENT :
@@ -1887,11 +1908,12 @@ class PayU extends PaymentModule
 					if ($order_state_id != (int)Configuration::get('PAYU_PAYMENT_STATUS_COMPLETED')
 						&& $order_state_id != (int)Configuration::get('PAYU_PAYMENT_STATUS_SENT'))
 					{
-						$history = new OrderHistory();
-						$history->id_order = $this->order->id;
-						$history->date_add = date('Y-m-d H:i:s');
+                        SimpleLogger::addLog(_PS_MODULE_DIR_.'payu/log/notification.log', 'current state id: '.$order_state_id. 'changing to: '.(int)Configuration::get('PAYU_PAYMENT_STATUS_SENT'));
+
+                        SimpleLogger::addLog(_PS_MODULE_DIR_.'payu/log/notification.log', 'ZMIANA STATUSU NA: '.PAYU_PAYMENT_STATUS_SENT);
 						$history->changeIdOrderState(Configuration::get('PAYU_PAYMENT_STATUS_SENT'), $this->order->id);
-						$history->addWithemail(false);
+
+                        $history->addWithemail(false);
 					}
 					break;
 			}
@@ -1907,61 +1929,26 @@ class PayU extends PaymentModule
 	 */
 	public function updateOrderData()
 	{
+
+
 		if (empty($this->id_session))
 			Logger::addLog($this->displayName.' '.$this->l('Can not get order information - id_session is empty'), 1);
 
 		$result = OpenPayU_Order::retrieve($this->id_session);
 
+
+
 		$response = $result->getResponse();
 
 		if (isset($response->orders[0]))
 		{
+            SimpleLogger::addLog(_PS_MODULE_DIR_.'payu/log/notification.log', 'updateOrderData(): zamówienie istnieje w systemie PayU');
 
 			if (!empty($this->id_order))
 			{
 				$this->order = new Order($this->id_order);
 
-				/* if (isset($payu_order_shipping['ShippingType']))
-				{
-					preg_match_all("'([0-9]+)'si", trim($payu_order_shipping['ShippingType'], ')'), $carrier);
-					$carrier_id = ($carrier[0][count($carrier[0]) - 1]);
 
-					if (!empty($carrier_id))
-					{
-						$this->order->id_carrier = $carrier_id;
-
-						$id_order_carrier = Db::getInstance()->getValue('
-						SELECT `id_order_carrier`
-						FROM `'._DB_PREFIX_.'order_carrier`
-						WHERE `id_order` = '.(int)$this->id_order.'
-						AND (`id_order_invoice` IS NULL OR `id_order_invoice` = 0)');
-
-						if ($id_order_carrier)
-						{
-							$shipping_cost_tax_excl = $this->toDecimal((int)$payu_order_shipping['ShippingCost']['Net']);
-							$shipping_cost_tax_incl = $this->toDecimal((int)$payu_order_shipping['ShippingCost']['Gross']);
-
-							$order_carrier = new OrderCarrier($id_order_carrier);
-							$order_carrier->id_carrier = (int)$this->order->id_carrier;
-							$order_carrier->shipping_cost_tax_excl = $shipping_cost_tax_excl;
-							$order_carrier->shipping_cost_tax_incl = $shipping_cost_tax_incl;
-							$order_carrier->update();
-
-							$this->order->total_shipping = $order_carrier->shipping_cost_tax_incl;
-							$this->order->total_shipping_tax_incl = $order_carrier->shipping_cost_tax_incl;
-							$this->order->total_shipping_tax_excl = $order_carrier->shipping_cost_tax_excl;
-
-							if ((isset($payu_order['PaidAmount'])
-							&& $payu_order['OrderStatus'] == self::ORDER_STATUS_COMPLETE
-							&& $payu_order['PaymentStatus'] == 'PAYMENT_STATUS_END') && (int)$this->order->total_paid_real == 0)
-							{
-								$this->order->total_paid = $this->order->total_products_wt + $this->order->total_shipping_tax_incl;
-								$this->order->total_paid_tax_incl = $this->order->total_paid;
-								$this->order->total_paid_tax_excl = $this->order->total_products + $this->order->total_shipping_tax_excl;
-							}
-						}
-					}
-				}*/
 
 				// Delivery address add
 				if (!empty($response->orders[0]->buyer))
